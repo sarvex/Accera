@@ -156,7 +156,10 @@ class Plan:
         if self._target.category == Target.Category.CPU:
             self._dynamic_dependencies.add(LibraryDependency.OPENMP)
 
-        if any([isinstance(arg, DelayedParameter) for arg in [indices, pin, policy, max_threads]]):
+        if any(
+            isinstance(arg, DelayedParameter)
+            for arg in [indices, pin, policy, max_threads]
+        ):
             self._delayed_calls[partial(self.parallelize)] = {
                 "indices": indices,
                 "pin": pin,
@@ -420,27 +423,22 @@ class Plan:
                 | MemorySpace.SHARED  | True          | MemorySpace.PRIVATE             |
                 | !MemorySpace.SHARED | True          | Same value as location          |
         """
-        if (
-            any(
-                [
-                    isinstance(arg, DelayedParameter)
-                    for arg in (
-                        index,
-                        trigger_index,
-                        level,
-                        trigger_level,
-                        thrifty,
-                        double_buffer,
-                        double_buffer_location,
-                        vectorize,
-                        layout,
-                        element_type,
-                        _shared_memory_offset
-                    )
-                ]
+        if any(
+            isinstance(arg, DelayedParameter)
+            for arg in (
+                index,
+                trigger_index,
+                level,
+                trigger_level,
+                thrifty,
+                double_buffer,
+                double_buffer_location,
+                vectorize,
+                layout,
+                element_type,
+                _shared_memory_offset,
             )
-            or (isinstance(source, DelayedCache) and not source.completed)
-        ):
+        ) or (isinstance(source, DelayedCache) and not source.completed):
             # If any of the cache level arguments are parameters, then this cache call is incomplete until those parameters
             # have values. Additionally, if this is a hierarchical cache and an outer cache is parameterized,
             # then this cache call is also incomplete until the outer cache's parameters have values
@@ -533,7 +531,7 @@ class Plan:
                 )
 
             # Validate that if level is specified, then index and trigger_index are not
-            if (level is not None) and (index is not None or trigger_index is not None):
+            if level is not None and trigger_index is not None:
                 raise ValueError(
                     "Can't specify both a cache level and a cache index or trigger index"
                 )
@@ -609,12 +607,7 @@ class Plan:
                 raise ValueError(
                     "Can only create a max element hierarchical caches of other max element caches"
                 )
-            if source.max_elements is not None:
-                if source.max_elements <= max_elements:
-                    raise ValueError(
-                        "Outer max element cache for a hierarchical cache must have a larger budget than the inner cache"
-                    )
-            else:
+            if source.max_elements is None:
                 if source.level <= level:
                     raise ValueError(
                         "Outer cache for a hierarchical cache must have a higher cache level than inner cache"
@@ -623,6 +616,10 @@ class Plan:
                     raise ValueError(
                         "Outer cache for a hierarchical cache must have a greater or equal cache level than the inner cache's trigger_level"
                     )
+            elif source.max_elements <= max_elements:
+                raise ValueError(
+                    "Outer max element cache for a hierarchical cache must have a larger budget than the inner cache"
+                )
         if element_type is None:
             element_type = source.element_type
 
@@ -661,11 +658,9 @@ class Plan:
 
         # Resolve vectorize=AUTO to either True or False since vectorize() will have been called by this point
         if cache.vectorize is AUTO:
-            cache.vectorize = False
-            for attrs in self._index_attrs.values():
-                if "vectorized" in attrs:
-                    cache.vectorize = True
-
+            cache.vectorize = any(
+                "vectorized" in attrs for attrs in self._index_attrs.values()
+            )
         vectorization_info = None
         if cache.vectorize:
             vectorization_info = self._target.vectorization_info
@@ -797,24 +792,20 @@ class Plan:
             mapping: Mapping of indices to GPU thread or block identifiers
         """
 
-        if self._target is not None and self._target.category == Target.Category.GPU:
-            if any(
-                [
-                    isinstance(index, DelayedParameter)
-                    or isinstance(proc, DelayedParameter)
-                    for index, proc in mapping.items()
-                ]
-            ):
-                self._delayed_calls[partial(self.bind)] = mapping
-                return None
-
-            self._commands.append(partial(self._bind, mapping))
-
-            for index_or_tuple, proc in mapping.items():
-                self._bindings[proc] = index_or_tuple
-
-        else:
+        if self._target is None or self._target.category != Target.Category.GPU:
             raise ValueError("Only supported on plans with GPU targets")
+        if any(
+            isinstance(index, DelayedParameter)
+            or isinstance(proc, DelayedParameter)
+            for index, proc in mapping.items()
+        ):
+            self._delayed_calls[partial(self.bind)] = mapping
+            return None
+
+        self._commands.append(partial(self._bind, mapping))
+
+        for index_or_tuple, proc in mapping.items():
+            self._bindings[proc] = index_or_tuple
 
     def _bind(self, mapping: Mapping[Union[LoopIndex, Tuple[LoopIndex]], GridUnits], context: NativeLoopNestContext):
         for index_or_tuple, proc in mapping.items():
@@ -960,19 +951,13 @@ class Plan:
         if len(max_block_dim) != 3:
             return True # Not a known GPU target (max_block_size not set by user) - bypass validation.
 
-        for i in range(3):
-            if block_dims[i] > max_block_dim[i]:
-                return False
-
-        return True
+        return all(block_dims[i] <= max_block_dim[i] for i in range(3))
 
     def _is_valid_block_size(self, block_dims) -> bool:
-        max_threads = self._target.max_threads_per_block
-        if not max_threads:
+        if max_threads := self._target.max_threads_per_block:
+            return block_dims[0] * block_dims[1] * block_dims[2] <= max_threads
+        else:
             return True # Not a known GPU target (max_threads_per_block not set by user) - bypass validation.
-
-        block_size = block_dims[0] * block_dims[1] * block_dims[2]
-        return block_size <= max_threads
 
     def _erase_loops(self, indices: List[LoopIndex]):
         for index in indices:
@@ -1030,17 +1015,19 @@ class Plan:
             if isinstance(params, dict):
                 resolved_params = {
                     key.get_value() if isinstance(key, DelayedParameter) \
-                        else key: params[key].get_value() if isinstance(params[key], DelayedParameter) \
-                        else params[key] \
-                            for key in params
+                            else key: params[key].get_value() if isinstance(params[key], DelayedParameter) \
+                            else params[key] \
+                                for key in params
                 }
 
                 # Some methods package the long list of arguments into a dict parameter, like Plan.cache, Plan.parallelize and Plan.kernelize
                 if delayed_call.func.__name__ == "bind":
                     delayed_call(resolved_params)
-                elif delayed_call.func.__name__ == "cache" or \
-                    delayed_call.func.__name__ == "parallelize" or \
-                    delayed_call.func.__name__ == "kernelize":
+                elif delayed_call.func.__name__ in [
+                    "cache",
+                    "parallelize",
+                    "kernelize",
+                ]:
                     delayed_call(**resolved_params)
                 else:
                     raise NotImplementedError(

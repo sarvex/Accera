@@ -760,13 +760,19 @@ class TensorCoreInformation:
         self, input_type: ScalarType, output_type: ScalarType, shape: MMAShape, num_total_passes: int,
         num_fused_passes: int
     ) -> bool:
-        if not (num_total_passes >= 1 and (num_fused_passes == -1 or num_total_passes % num_fused_passes == 0)):
+        if (
+            num_total_passes < 1
+            or num_fused_passes != -1
+            and num_total_passes % num_fused_passes != 0
+        ):
             return False
 
-        for entry in self.entries:
-            if input_type == entry.inType and output_type == entry.outType and entry.shape == shape:
-                return True
-        return False
+        return any(
+            input_type == entry.inType
+            and output_type == entry.outType
+            and entry.shape == shape
+            for entry in self.entries
+        )
 
     def mma_shape_to_tuple(self, mma_shape: MMAShape):
         return {
@@ -986,9 +992,15 @@ def _recompute_known_devices():
             vector_registers=device["Vector Registers"],
         )
         KNOWN_DEVICES[target.category][target.name] = target
-        model_names.append((target.name, target.name))
-        model_names.append((target.name.upper().translate(_MODEL_TRANSLATION_DICT), target.name))
-
+        model_names.extend(
+            (
+                (target.name, target.name),
+                (
+                    target.name.upper().translate(_MODEL_TRANSLATION_DICT),
+                    target.name,
+                ),
+            )
+        )
     for device in KNOWN_GPUS:
         device = {v: device[i]
                   for i, v in enumerate(KNOWN_GPUS_HEADER)}
@@ -1011,9 +1023,15 @@ def _recompute_known_devices():
             1,    # Setting this to 1 will enable vectorization but prevents unroll-and-jamming cache filling. TODO : get the right value for this
         )
         KNOWN_DEVICES[target.category][target.name] = target
-        model_names.append((target.name, target.name))
-        model_names.append((target.name.upper().translate(_MODEL_TRANSLATION_DICT), target.name))
-
+        model_names.extend(
+            (
+                (target.name, target.name),
+                (
+                    target.name.upper().translate(_MODEL_TRANSLATION_DICT),
+                    target.name,
+                ),
+            )
+        )
     # This will raise an error if there's a duplicate enum name being added
     # It may need to be addressed in the future, but leaving it for when it
     # becomes necessary. It'll be the first device that can be run in both CPU and GPU modes
@@ -1109,15 +1127,14 @@ class Target(_TargetContainer):
                 else:
                     device = KNOWN_DEVICES[category].get(known_name)
 
-                if not device:
-                    if category != Category.GPU:    # TODO: GPUs characteristics are not fully fleshed out
-                        raise Exception(
-                            f"Unknown device name for {category}. If a new device has been added at runtime, _recompute_known_devices must be called"
-                        )
-                else:
+                if device:
                     for f in fields(device):
                         setattr(self, f.name, getattr(device, f.name))
 
+                elif category != Category.GPU:    # TODO: GPUs characteristics are not fully fleshed out
+                    raise Exception(
+                        f"Unknown device name for {category}. If a new device has been added at runtime, _recompute_known_devices must be called"
+                    )
         # override with user-specified values, if any
         # KEEP THIS SORTED
         self.architecture = architecture or self.architecture
@@ -1159,8 +1176,9 @@ class Target(_TargetContainer):
                 for info in name_info:
                     regex_match = regex_match + r'\b' + info + r'\b.*?'
 
-                match = re.match(regex_match, cpu_info['brand_raw'], re.IGNORECASE)
-                if match:
+                if match := re.match(
+                    regex_match, cpu_info['brand_raw'], re.IGNORECASE
+                ):
                     return m.name
 
             # print a warning for unknown host if nothing matched

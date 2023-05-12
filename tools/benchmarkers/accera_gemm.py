@@ -132,10 +132,10 @@ class BenchmarkResult:
 
 def print_log(verbose: bool, msg: str, color: str = None):
     if verbose:
-        if not color:
-            print(msg)
-        else:
+        if color:
             print(colored(msg, color))
+        else:
+            print(msg)
 
 def get_k(target: Target, mma_shape: MMAShape):
     mma_shape = target.tensor_core_info.mma_shape_to_tuple(mma_shape)
@@ -156,7 +156,12 @@ def get_type(typeStr: str):
     return ScalarType.float32 if typeStr == 's' else ScalarType.float16
 
 def single_block_mma(mma_shape: MMAShape):
-    return mma_shape != MMAShape.M64xN64xK1_B4 and mma_shape != MMAShape.M64xN64xK1_B2 and mma_shape != MMAShape.M64xN64xK4_B4 and mma_shape != MMAShape.M64xN64xK4_B2
+    return mma_shape not in [
+        MMAShape.M64xN64xK1_B4,
+        MMAShape.M64xN64xK1_B2,
+        MMAShape.M64xN64xK4_B4,
+        MMAShape.M64xN64xK4_B2,
+    ]
 
 def create_gemm_nest_args(M: int, N: int, K: int, transA: bool, transB: bool, dtype):
     datatype = get_type(dtype)
@@ -264,7 +269,7 @@ def get_dir(output_prefix):
     return os.path.split(output_prefix)[0] or '.'
 
 def get_hat_path(output_prefix, package_name):
-    return os.path.join(get_dir(output_prefix), package_name + ".hat")
+    return os.path.join(get_dir(output_prefix), f"{package_name}.hat")
 
 
 def get_variants(opts: GemmOpts, dtype, target):
@@ -434,7 +439,6 @@ def benchmark_gemm(opts: GemmOpts, dtype, batch_size: int, output_prefix: str, c
             gpu_devices.append(i)
             device_q.append(multiprocessing.Queue())
 
-    total_gpus = len(gpu_devices)
     target = Target(target_name)
     variants = get_variants(opts, dtype, target)
 
@@ -471,6 +475,7 @@ def benchmark_gemm(opts: GemmOpts, dtype, batch_size: int, output_prefix: str, c
 
         waveSize = multiprocessing.cpu_count()
         manager = multiprocessing.Manager()
+        total_gpus = len(gpu_devices)
         for wave in range(0, len(variants), waveSize):
             processes = []
             result_rows = manager.list()
@@ -601,7 +606,7 @@ def gemm_runner(gpu_id: int, batch_size: int, output_prefix, device_q, result_ro
         if result.compilable:
             print_log(verbose_logs, f"Running package: {package_name} on gpu {gpu_id}. Pending packages: {device_q.qsize()}", 'cyan')
 
-            kernel_path = os.path.join(get_dir(output_prefix), package_name + ".cu")
+            kernel_path = os.path.join(get_dir(output_prefix), f"{package_name}.cu")
             with open(kernel_path, 'r') as kernel_file:
                 result.kernelCode = kernel_file.read()
             try:

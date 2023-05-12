@@ -65,7 +65,7 @@ class LogicFunction:
         # get the mapping of global and nonlocal variable captures used by the function
         globals_to_update = [k for k in kwargs if k in self.func_globals]
         nonlocals_to_update = [k for k in kwargs if k in self.func_nonlocals]
-        
+
         # make sure there's no overlap between the keys. might be impossible to hit
         assert set(globals_to_update).isdisjoint(nonlocals_to_update)
 
@@ -84,8 +84,8 @@ class LogicFunction:
             if isinstance(v.cell_contents, types.FunctionType):
                 v_func = logic_function(v.cell_contents)
                 globals, nonlocals = v_func._update_globals_locals(**kwargs)
-                current_globals.update(globals)
-                current_nonlocals.update(nonlocals)
+                current_globals |= globals
+                current_nonlocals |= nonlocals
                 continue
             if k not in nonlocals_to_update:
                 continue
@@ -95,7 +95,7 @@ class LogicFunction:
             if id(v.cell_contents) != id(kwargs[k]):
                 current_nonlocals[k] = v.cell_contents
                 v.cell_contents = kwargs[k]
-        
+
         return current_globals, current_nonlocals
 
 

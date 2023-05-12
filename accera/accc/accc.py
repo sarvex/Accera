@@ -139,10 +139,7 @@ class Options(Flag):
     KEEP_DEBUG_INFO = auto()
 
 def _get_common_debug_info_options_args(options: Options):
-    if options & Options.KEEP_DEBUG_INFO:
-        return LLVM_KEEP_DEBUG_INFO_ARGS
-    else:
-        return []
+    return LLVM_KEEP_DEBUG_INFO_ARGS if options & Options.KEEP_DEBUG_INFO else []
 
 def _get_options_opt_args(options: Options):
     args = []
@@ -163,13 +160,12 @@ def _get_options_llc_args(options: Options):
 
 
 def get_default_deploy_shared_libraries(target=CPU_TARGET):
-    if target == GPU_TARGET:
-        if os.path.isfile(BuildConfig.vulkan_runtime_wrapper_shared_library):
-            return [BuildConfig.vulkan_runtime_wrapper_shared_library]
-        else:
-            raise (ValueError("GPU support is not enabled"))
-    else:
+    if target != GPU_TARGET:
         return []
+    if os.path.isfile(BuildConfig.vulkan_runtime_wrapper_shared_library):
+        return [BuildConfig.vulkan_runtime_wrapper_shared_library]
+    else:
+        raise (ValueError("GPU support is not enabled"))
 
 
 class BuiltAcceraEmittedLibrary:
@@ -533,9 +529,7 @@ class ModuleFileSet:
         else:
             desc += [f"Source Output: {self.translated_source_filepath}"]
 
-        s = "\n".join(desc)
-
-        return s
+        return "\n".join(desc)
 
 
 class AcceraProject:
@@ -594,7 +588,7 @@ class AcceraProject:
         makedir(self.generator_dir, pretend=pretend, quiet=self.quiet)
         if dsl_src_filepath:
             self.dsl_src_filepath = os.path.abspath(dsl_src_filepath)
-            self.generator_name = self.library_name + "_generator"
+            self.generator_name = f"{self.library_name}_generator"
 
             self.generator_project = deploy_accera_generator_project(
                 deploy_dir=self.generator_dir,
@@ -613,7 +607,7 @@ class AcceraProject:
             self.main_dir = os.path.join(self.output_dir, main_dir_name)
             makedir(self.main_dir, pretend=pretend, quiet=self.quiet)
             self.main_src_filepath = os.path.abspath(main_src_filepath)
-            self.main_name = self.library_name + "_main"
+            self.main_name = f"{self.library_name}_main"
 
     def make_log_filepaths(self, tag):
         stdout_filename_template = "{}_stdout.txt"
@@ -723,7 +717,9 @@ class AcceraProject:
             pretend=pretend,
             quiet=quiet
         )
-        self.emitted_header_path = os.path.join(self.intermediate_working_dir, self.library_name + ".h")
+        self.emitted_header_path = os.path.join(
+            self.intermediate_working_dir, f"{self.library_name}.h"
+        )
         generated_mlir_filenames = [
             filename for filename in os.listdir(self.intermediate_working_dir) if filename.endswith(self.mlir_ext)
         ]

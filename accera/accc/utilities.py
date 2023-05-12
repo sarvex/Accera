@@ -32,9 +32,8 @@ class OpenFile:
     def __enter__(self):
         if self.pretend:
             return None
-        else:
-            self.file = open(self.path, self.open_arg)
-            return self.file
+        self.file = open(self.path, self.open_arg)
+        return self.file
 
     def __exit__(self, exit_type, exit_value, exit_traceback):
         if self.file:
@@ -44,7 +43,7 @@ class OpenFile:
 
 def rmdir(path, pretend=False, quiet=True):
     if not quiet:
-        print("rm -rf {}".format(path))
+        print(f"rm -rf {path}")
 
     if not pretend:
         shutil.rmtree(path)
@@ -52,7 +51,7 @@ def rmdir(path, pretend=False, quiet=True):
 
 def makedir(path, pretend=False, quiet=True):
     if not quiet:
-        print("mkdir {}".format(path))
+        print(f"mkdir {path}")
 
     if not pretend:
         os.makedirs(path, exist_ok=True)
@@ -146,14 +145,12 @@ def get_cmake_initialization_cmd(build_config="Release"):
 
 
 def get_cmake_build_cmd(build_config="Release"):
-    return 'cmake --build . --config {}'.format(build_config)
+    return f'cmake --build . --config {build_config}'
 
 
 def set_high_performance_gpu(target_executable, pretend=False, quiet=True):
     if platform.system() == "Windows":
-        command = "@PowerShell -Command Set-ItemProperty HKCU:\\SOFTWARE\\Microsoft\\DirectX\\UserGpuPreferences -Name (Resolve-Path {}) -Value \"GpuPreference='2;'\"".format(
-            target_executable
-        )
+        command = f"""@PowerShell -Command Set-ItemProperty HKCU:\\SOFTWARE\\Microsoft\\DirectX\\UserGpuPreferences -Name (Resolve-Path {target_executable}) -Value \"GpuPreference='2;'\""""
         run_command(command, cmake_command=False, shell=True, pretend=pretend, quiet=quiet)
 
 

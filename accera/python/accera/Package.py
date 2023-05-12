@@ -104,7 +104,7 @@ def _emit_module(module_to_emit, target, mode, output_dir, name):
     )
 
     # Create initial HAT files containing shape and type metadata that the C++ layer has access to
-    header_path = os.path.join(output_dir, name + ".hat")
+    header_path = os.path.join(output_dir, f"{name}.hat")
     module_to_emit.WriteHeader(header_path)
 
     # Complete the HAT file with information we have stored at this layer
@@ -190,10 +190,8 @@ class Package:
     def _create_mapping_of_heuristic_parameters_with_possible_values(
         self, source: Union["accera.Nest", "accera.Schedule", "accera.Plan", "accera.Function", Callable]
     ):
-        parameter_dict = {}
-        heuristic_parameters = source._get_heuristic_parameters()
-        # heuristic_parameters is a list of list of params
-        if heuristic_parameters:
+        if heuristic_parameters := source._get_heuristic_parameters():
+            parameter_dict = {}
             for heuristic_parameter_list in heuristic_parameters:
                 for heuristic_parameter in heuristic_parameter_list:
                     possible_values = heuristic_parameter.get_possible_values()
@@ -288,7 +286,7 @@ class Package:
             if isinstance(value, int):
                 param_value_dict[delayed_param._name] = value
             else:
-                if isinstance(value, tuple) or isinstance(value, list):
+                if isinstance(value, (tuple, list)):
                     if all(isinstance(v, LoopIndex) for v in value):
                         param_value_dict[delayed_param._name] = str([x._name for x in value])
                     else:
@@ -364,7 +362,7 @@ class Package:
             if isinstance(arr, lang.Array):
                 _resolve_array_shape(source, arr)
 
-        if isinstance(source, lang.Nest) or isinstance(source, lang.Schedule):
+        if isinstance(source, (lang.Nest, lang.Schedule)):
             # assumption: convenience functions are for host targets only
             source = source.create_plan(Target.HOST)
             # fall-through
@@ -375,7 +373,9 @@ class Package:
             # fall-through
 
         arg_names = [
-            arg.name if isinstance(arg, lang.Array) or isinstance(arg, _lang_python._lang.Dimension) else ""
+            arg.name
+            if isinstance(arg, (lang.Array, _lang_python._lang.Dimension))
+            else ""
             for arg in args
         ]
         arg_sizes = [arg._size_str if isinstance(arg, lang.Array) else "" for arg in args]
@@ -661,8 +661,6 @@ class Package:
         )
 
         path_root = os.path.join(output_dir, name)
-        extension = ".hat"
-
         if format & Package.Format.SOURCE:
             shutil.copy(proj.module_file_sets[0].translated_source_filepath, output_dir)
 
@@ -670,6 +668,8 @@ class Package:
             shutil.copy(proj.module_file_sets[0].object_filepath, output_dir)
 
         if format & Package.Format.HAT_PACKAGE:
+            extension = ".hat"
+
             # Create initial HAT file containing shape and type metadata that the C++ layer has access to
             header_path = path_root + extension
             package_module.WriteHeader(header_path)
@@ -714,7 +714,7 @@ class Package:
                     if (fn.target.category == Target.Category.GPU and fn.target.runtime != Target.Runtime.VULKAN):
                         # TODO: Remove this when the header is emitted as part of the compilation
                         gpu_source = proj.module_file_sets[0].translated_source_filepath
-                        gpu_device_func = fn_name + "__gpu__"
+                        gpu_device_func = f"{fn_name}__gpu__"
                         with open(gpu_source) as gpu_source_f:
                             s = re.search(gpu_device_func + _R_GPU_LAUNCH, gpu_source_f.read())
                             if not s:
@@ -783,7 +783,7 @@ class Package:
 
                 shutil.move(dyn_hat_path, header_path)
 
-            # TODO: plumb cross-compilation of static libs
+                # TODO: plumb cross-compilation of static libs
 
         return proj.module_file_sets
 

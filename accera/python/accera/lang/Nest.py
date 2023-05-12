@@ -32,8 +32,8 @@ class Nest:
         self._logic_fns = []
         self._shape = [(dim, LoopIndex(self)) for dim in shape]
 
-        if any([isinstance(s, DelayedParameter) for s in shape]):
-            self._delayed_calls[partial(self._init_delayed)] = tuple([s for s in shape])
+        if any(isinstance(s, DelayedParameter) for s in shape):
+            self._delayed_calls[partial(self._init_delayed)] = tuple(list(shape))
 
     def create_schedule(self) -> "accera.Schedule":
         "Creates a schedule for shaping the iteration space"
@@ -75,7 +75,7 @@ class Nest:
             if len(self._shape) > 1:
                 if (len(names) == 1):
                     basename = names[0]
-                    names = [basename+'_'+str(i) for i in range(len(indices))]
+                    names = [f'{basename}_{str(i)}' for i in range(len(indices))]
                 zipped_name_index = zip(names, indices)
                 for name, index in zipped_name_index:
                     if not index.name:
@@ -134,7 +134,7 @@ class Nest:
         import types
 
         captures_to_replace = {}
-        
+
         for k, v in logic_fn.get_captures().items():
             value_id = id(v)
             if value_id in context.mapping:
@@ -168,7 +168,9 @@ class Nest:
                     captures_to_replace[k] = v.get_value()
                     continue
                 elif isinstance(v, types.FunctionType):
-                    captures_to_replace.update(self._get_captures_to_replace(logic_function(v), context))
+                    captures_to_replace |= self._get_captures_to_replace(
+                        logic_function(v), context
+                    )
                     continue
 
                 try:
@@ -182,8 +184,7 @@ class Nest:
                         if isinstance(elem, Scalar):
                             is_scalar = True
                             break
-                        replacement = context.mapping.get(id(elem))
-                        if replacement:
+                        if replacement := context.mapping.get(id(elem)):
                             replaced_values.append(replacement)
                     if not is_scalar:
                         captures_to_replace[k] = tuple(replaced_values)
@@ -220,7 +221,7 @@ class Nest:
         index_handles_to_native_index = dict(
             zip([id(x) for _, x in self._shape], native_indices)
         )
-        logic_args.update(index_handles_to_native_index)
+        logic_args |= index_handles_to_native_index
 
         context.mapping.update(logic_args)
 

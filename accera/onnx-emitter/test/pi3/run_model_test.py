@@ -46,10 +46,7 @@ def _is_windows():
     return _get_os_name() == 'windows'
 
 def _get_architecture_name():
-    if platform.machine().startswith('arm'):
-        return 'arm'
-    else:
-        return platform.machine()
+    return 'arm' if platform.machine().startswith('arm') else platform.machine()
 
 def _create_dllmain(filename: str):
     f = pathlib.Path(filename).with_suffix(".cc")
@@ -63,7 +60,10 @@ def _create_dllmain(filename: str):
         )
 
     obj_file = f.with_suffix(".obj")
-    subprocess.run(['cl', '/Fo' + str(obj_file.absolute()), '/c', str(f.absolute())], check=True)
+    subprocess.run(
+        ['cl', f'/Fo{str(obj_file.absolute())}', '/c', str(f.absolute())],
+        check=True,
+    )
     return str(obj_file.absolute())
 
 def accera_provider_settings(hat_package_dir):
@@ -82,16 +82,24 @@ def accera_provider_settings(hat_package_dir):
     for fn in found_functions:
         print(f"\t{fn.name}")
 
-    objs = set([str(pathlib.Path(func.link_file).absolute()) for func in
-                found_functions if hasattr(func, 'link_file')])
+    objs = {
+        str(pathlib.Path(func.link_file).absolute())
+        for func in found_functions
+        if hasattr(func, 'link_file')
+    }
 
     so_file = (
         hat_dir / package_name).with_suffix(".dll" if _is_windows() else ".so")
     so_file = str(so_file.absolute())
 
     if _is_windows():
-        objs.add(_create_dllmain(
-            (hat_dir / package_name).with_name(package_name + "_dllmain.cc")))
+        objs.add(
+            _create_dllmain(
+                (hat_dir / package_name).with_name(
+                    f"{package_name}_dllmain.cc"
+                )
+            )
+        )
 
         subprocess.run(
             ['link', '-dll', '-FORCE:MULTIPLE'] +
@@ -105,18 +113,13 @@ def accera_provider_settings(hat_package_dir):
              '-fPIC',
              '-o', so_file
              ] + list(objs), check=True)
-    settings = {}
-    settings['custom_library'] = so_file
-
     node_to_func = {}
     for func in found_functions:
         if not func.onnx: continue
 
         node_funcs = node_to_func.setdefault(func.onnx[ONNXHATPackage.NodeTypeKey], [])
         node_funcs.append(func.onnx)
-    settings['node_to_func'] = node_to_func
-
-    return settings
+    return {'custom_library': so_file, 'node_to_func': node_to_func}
 
 
 def create_accera_settings_from_package(hat_package):
@@ -137,24 +140,23 @@ def get_min_input_sets(input_shapes, MB_to_exceed=50):
 
 
 def get_input_sets(ort_session, num_additional=10):
-    input_shapes = []
-    for inp in ort_session.get_inputs():
-        input_shapes.append(inp.shape)
-
+    input_shapes = [inp.shape for inp in ort_session.get_inputs()]
     generator = np.random.default_rng(seed=2021)
 
     # Create inputs
     input_list = ort_session.get_inputs()
     num_input_sets = get_min_input_sets(input_shapes, 1) + num_additional
-    print("\t\tUsing {} input sets".format(num_input_sets))
+    print(f"\t\tUsing {num_input_sets} input sets")
     input_sets = []
-    for i in range(num_input_sets):
-        ort_inputs = {}
-        for i, inp in enumerate(input_list):
-            if 'int64' in inp.type:
-                ort_inputs[inp.name] = generator.integers(0, 255, size=input_shapes[i], dtype=np.int64)
-            else:
-                ort_inputs[inp.name] = generator.random(input_shapes[i]).astype(dtype=np.float32)
+    for _ in range(num_input_sets):
+        ort_inputs = {
+            inp.name: generator.integers(
+                0, 255, size=input_shapes[i], dtype=np.int64
+            )
+            if 'int64' in inp.type
+            else generator.random(input_shapes[i]).astype(dtype=np.float32)
+            for i, inp in enumerate(input_list)
+        }
         input_sets.append(ort_inputs)
     return input_sets
 
@@ -162,8 +164,7 @@ def get_input_sets(ort_session, num_additional=10):
 def get_optimized_onnx_model_expected_name(base_name, batch, seq):
     opt_suffix = "_opt"
     specifier = f"_b{batch}_s{seq}"
-    expected_name = f"{base_name}{specifier}{opt_suffix}.onnx"
-    return expected_name
+    return f"{base_name}{specifier}{opt_suffix}.onnx"
 
 
 def test_transformer_model_on_target_per_node(model_name, output_dir):
@@ -211,7 +212,7 @@ def test_transformer_model_on_target(output_dir):
                 "ort/hat_ep": cpu_time / rc_time,
             }
         temp_df = pd.DataFrame.from_dict(results, orient='index')
-        temp_df.to_csv(f"test_transformer_model_partial.csv")
+        temp_df.to_csv("test_transformer_model_partial.csv")
 
     df = pd.DataFrame.from_dict(results, orient='index')
 
@@ -248,7 +249,7 @@ def test_model_on_target_cpu(model, output_dir, outputs=None, options=None, num_
     batch_times = []
     while (wall_clock_end - wall_clock_start) < (min_time_in_sec * perf_counter_scale):
         batch_start = perf_counter()
-        for b in range(num_batches):
+        for _ in range(num_batches):
             iterations += 1
             index = (iterations + num_batches) % num_input_sets
             cpu_res = cpu_sess.run(None, input_sets[index])
@@ -302,7 +303,7 @@ def test_model_on_target_accera(model, output_dir, outputs=None, options=None, n
     batch_times = []
     while (wall_clock_end - wall_clock_start) < (min_time_in_sec * perf_counter_scale):
         batch_start = perf_counter()
-        for b in range(num_batches):
+        for _ in range(num_batches):
             iterations += 1
             index = (iterations + num_batches) % num_input_sets
             rc_results = rc_sess.run(None, input_sets[index])
@@ -362,9 +363,8 @@ def test_model_on_target(model, output_dir, outputs=None, options=None, num_resu
 
             if VERIFY_TESTING_MODE:
                 raise e
-            else:
-                print(e)
-                print("!" * 20)
+            print(e)
+            print("!" * 20)
 
         # Do warm-up
         print(f"Running {num_batches} warm-up iterations")
@@ -384,7 +384,7 @@ def test_model_on_target(model, output_dir, outputs=None, options=None, num_resu
     batch_times = []
     while (wall_clock_end - wall_clock_start) < (min_time_in_sec * perf_counter_scale):
         batch_start = perf_counter()
-        for b in range(num_batches):
+        for _ in range(num_batches):
             iterations += 1
             index = (iterations + num_batches) % num_input_sets
             cpu_res = cpu_sess.run(None, input_sets[index])
@@ -405,7 +405,7 @@ def test_model_on_target(model, output_dir, outputs=None, options=None, num_resu
     batch_times = []
     while (wall_clock_end - wall_clock_start) < (min_time_in_sec * perf_counter_scale):
         batch_start = perf_counter()
-        for b in range(num_batches):
+        for _ in range(num_batches):
             iterations += 1
             index = (iterations + num_batches) % num_input_sets
             rc_results = rc_sess.run(None, input_sets[index])
@@ -434,15 +434,15 @@ def main(args=[]):
 
     if args.per_node == False:
         test_transformer_model_on_target(args.output_dir)
+    elif args.model_dir == '':
+        test_transformer_model_on_target_per_node(args.model_name, args.output_dir)
+
     else:
-        if args.model_dir != '':
-            model_files = os.listdir(args.model_dir)
-            for model_name in model_files:
-                model_file = os.path.join(args.model_dir, model_name)
-                test_transformer_model_on_target_per_node(model_file, args.output_dir)
-                gc.collect()
-        else:
-            test_transformer_model_on_target_per_node(args.model_name, args.output_dir)
+        model_files = os.listdir(args.model_dir)
+        for model_name in model_files:
+            model_file = os.path.join(args.model_dir, model_name)
+            test_transformer_model_on_target_per_node(model_file, args.output_dir)
+            gc.collect()
 
 if __name__ == "__main__":
     main(sys.argv[1:])

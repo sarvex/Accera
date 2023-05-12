@@ -79,7 +79,7 @@ class CMakeBuild(build_ext):
         return f"{self.build_lib}-{self.component}" if self.component else self.build_lib
 
     def build_extension(self, ext):
-        with ChdirRepoRoot():    # CMake must be run at the repository root
+        with ChdirRepoRoot():# CMake must be run at the repository root
             if self.debug:
                 cfg = "Debug"
             elif developer_mode():
@@ -141,12 +141,13 @@ class CMakeBuild(build_ext):
 
             # Set CMAKE_BUILD_PARALLEL_LEVEL to control the parallel build level
             # across all generators.
-            if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:
-                # self.parallel is a Python 3 only way to set parallel jobs by hand
-                # using -j in the build_ext call, not supported by pip or PyPA-build.
-                if hasattr(self, "parallel") and self.parallel:
-                    # CMake 3.12+ only.
-                    build_args += ["-j{}".format(self.parallel)]
+            if (
+                "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ
+                and hasattr(self, "parallel")
+                and self.parallel
+            ):
+                # CMake 3.12+ only.
+                build_args += ["-j{}".format(self.parallel)]
 
             if self.compiler.compiler_type == "msvc":
                 self.build_temp = self.build_temp.replace("Release", "RelWithDebInfo")

@@ -76,10 +76,7 @@ def accera_to_np_type(datatype: ScalarType):
     if datatype == ScalarType.int16:
         return np.int16
 
-    if datatype == ScalarType.int8:
-        return np.int8
-
-    return None
+    return np.int8 if datatype == ScalarType.int8 else None
 
 
 def avx2_cpu():

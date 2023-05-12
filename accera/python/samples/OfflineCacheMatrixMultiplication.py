@@ -27,7 +27,7 @@ def RuntimeInitCacheMLAS(
 ):
     from accera import Nest
 
-    if not all([len(array.shape) == 2 for array in [A, B, C]]):
+    if any(len(array.shape) != 2 for array in [A, B, C]):
         raise RuntimeError("Invalid shapes for arguments")
 
     _M_A, _K_A = A.shape
@@ -117,7 +117,7 @@ def RuntimeInitCacheMLAS(
 def EmitTimeCacheMLAS(A: Array, B: Array, C: Array, opts=Options(), wrapper_fn_name: str = "", target=Target.HOST):
     from accera import Nest
 
-    if not all([len(array.shape) == 2 for array in [A, B, C]]):
+    if any(len(array.shape) != 2 for array in [A, B, C]):
         raise RuntimeError("Invalid shapes for arguments")
 
     _M_A, _K_A = A.shape

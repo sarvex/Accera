@@ -47,16 +47,15 @@ Did you specify role=Role.TEMP?"""
 def role_to_usage(arg):
     from .._lang_python import _FunctionParameterUsage
 
-    if isinstance(arg, (Array, Scalar, Dimension)):
-        assert arg.role != Role.TEMP # temp vars cannot be passed as args
-        if arg.role == Role.INPUT:
-            return _FunctionParameterUsage.INPUT
-        elif arg.role == Role.OUTPUT:
-            return _FunctionParameterUsage.OUTPUT
-        else:
-            return _FunctionParameterUsage.INPUT_OUTPUT
-    else:
+    if not isinstance(arg, (Array, Scalar, Dimension)):
         return _FunctionParameterUsage.INPUT
+    assert arg.role != Role.TEMP # temp vars cannot be passed as args
+    if arg.role == Role.INPUT:
+        return _FunctionParameterUsage.INPUT
+    elif arg.role == Role.OUTPUT:
+        return _FunctionParameterUsage.OUTPUT
+    else:
+        return _FunctionParameterUsage.INPUT_OUTPUT
 
 @dataclass
 class Function:
@@ -90,7 +89,7 @@ class Function:
         if hasattr(self, "_native_fn") and self._native_fn.is_defined:
             return
 
-        self._native_fn = _DeclareFunction(self.name + "_impl")
+        self._native_fn = _DeclareFunction(f"{self.name}_impl")
         for delayed_param, value in self.param_overrides.items():
             delayed_param.set_value(value)
 

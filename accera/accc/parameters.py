@@ -93,10 +93,13 @@ class LibraryNameParameter(BaseParameter):
 
 
 def parse_parameter_type(name, value):
-    if isinstance(value, str) or isinstance(value, int) or isinstance(value, bool):
+    if isinstance(value, (str, int, bool)):
         return BaseParameter(name, value)
     elif isinstance(value, list):
-        inner_params = [parse_parameter_type(name + "_" + str(idx), value[idx]) for idx in range(len(value))]
+        inner_params = [
+            parse_parameter_type(f"{name}_{str(idx)}", value[idx])
+            for idx in range(len(value))
+        ]
         inner_list_last_delimiter_idx = -1
         for param in inner_params:
             if isinstance(param, ListParameter):
@@ -110,13 +113,11 @@ def parse_parameter_type(name, value):
 
 def parse_parameters_from_yaml_file(yaml_filepath, parameter_key="Generator"):
     if not os.path.exists(yaml_filepath):
-        raise ValueError("Provided yaml filepath does not exist: " + yaml_filepath)
+        raise ValueError(f"Provided yaml filepath does not exist: {yaml_filepath}")
     with open(yaml_filepath, "r") as f:
         yaml_data = yaml.safe_load(f)
     param_dict = yaml_data[parameter_key]
-    param_list = []
-    for key in param_dict:
-        param_list += [parse_parameter_type(key, param_dict[key])]
+    param_list = [parse_parameter_type(key, param_dict[key]) for key in param_dict]
     return ParameterCollection(param_list)
 
 

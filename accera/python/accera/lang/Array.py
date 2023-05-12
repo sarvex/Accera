@@ -101,14 +101,13 @@ class Array:
             self._shape = shape
 
             if self._element_type:    # override the data.dtype
-                dtype = SCALAR_TYPE_TO_DTYPE_STR.get(self._element_type, None)
-                if dtype:
-                    if str(self._data.dtype) != dtype:
-                        logging.debug(f"[API] Converted from {self._data.dtype} to {dtype}")
-                        self._data = self._data.astype(dtype)
-                    # else no conversion needed
-                else:
+                if not (
+                    dtype := SCALAR_TYPE_TO_DTYPE_STR.get(self._element_type, None)
+                ):
                     raise NotImplementedError(f"Unsupported element type {self._element_type} for Role.CONST")
+                if str(self._data.dtype) != dtype:
+                    logging.debug(f"[API] Converted from {self._data.dtype} to {dtype}")
+                    self._data = self._data.astype(dtype)
             else:    # infer element_type from data
                 self._element_type = DTYPE_STR_TO_SCALAR_TYPE.get(str(self._data.dtype), None)
                 if self._element_type:
@@ -116,22 +115,28 @@ class Array:
                 else:
                     raise NotImplementedError(f"Unsupported dtype {self._data.dtype} for Role.CONST")
 
-        if not self._element_type:
+        if (
+            self._element_type
+            and not isinstance(self._element_type, ScalarType)
+            and self._element_type is int
+        ):
+            self._element_type = ScalarType.int64
+        elif (
+            self._element_type
+            and not isinstance(self._element_type, ScalarType)
+            and self._element_type is float
+            or not self._element_type
+        ):
             self._element_type = ScalarType.float32
         elif not isinstance(self._element_type, ScalarType):
-            if self._element_type is int:
-                self._element_type = ScalarType.int64
-            elif self._element_type is float:
-                self._element_type = ScalarType.float32
-            else:
-                raise ValueError("Unknown element type on Array instance")
+            raise ValueError("Unknown element type on Array instance")
 
         if shape:
-            if any([isinstance(s, DelayedParameter) for s in shape]):
-                self._delayed_calls[partial(self._init_delayed)] = tuple([s for s in shape])
+            if any(isinstance(s, DelayedParameter) for s in shape):
+                self._delayed_calls[partial(self._init_delayed)] = tuple(list(shape))
                 return
             elif shape[-1] == inf:
-                if (len(shape) > 1 and any([s == inf for s in shape[:-1]])):
+                if len(shape) > 1 and any(s == inf for s in shape[:-1]):
                     raise ValueError("Only the last dimension can be inf")
                 return    # shape will be resolved in Package.add based on access index
 
@@ -171,23 +176,18 @@ class Array:
 
     @property
     def _value(self):
-        if self._native_array:
-            return self._native_array._value
-        else:
-            return None
+        return self._native_array._value if self._native_array else None
 
     def _reinterpret_cast_internal(self, element_type):
         src_element_size = type_size_bytes(self.element_type)
         dst_element_size = type_size_bytes(element_type)
         if src_element_size == dst_element_size:
             expected_layout = self.shape
+        elif any(map(lambda d: isinstance(d, Dimension), self.shape)):
+            expected_layout = [-1]
         else:
-            if any(map(lambda d: isinstance(d, Dimension), self.shape)):
-                expected_layout = [-1]
-            else:
-                expected_layout = [int(self._num_elements * (src_element_size / dst_element_size))]
-        reinterpreted = Array(role=self.role, element_type=element_type, shape=expected_layout)
-        return reinterpreted
+            expected_layout = [int(self._num_elements * (src_element_size / dst_element_size))]
+        return Array(role=self.role, element_type=element_type, shape=expected_layout)
 
     def _get_memory_buffer(self):
         return self._reinterpret_cast_internal(ScalarType.uint8)
@@ -347,7 +347,7 @@ class SubArray(Array):
     def __init__(self, source: Array, shape: Tuple[Union[int, DelayedParameter]], name: str = None):
         self._source = source
         self._role = source.role
-        self._name = name if name is not None else (source._name + '_sub')
+        self._name = name if name is not None else f'{source._name}_sub'
         self._shape = shape or source.shape
         self._element_type = source.element_type
         self._layout = source._layout
@@ -355,8 +355,10 @@ class SubArray(Array):
         self._offset = 0
         self._delayed_calls = {}
 
-        if self._shape and any([isinstance(s, DelayedParameter) for s in self._shape]):
-            self._delayed_calls[partial(self._init_delayed)] = tuple([s for s in self._shape])
+        if self._shape and any(
+            isinstance(s, DelayedParameter) for s in self._shape
+        ):
+            self._delayed_calls[partial(self._init_delayed)] = tuple(list(self._shape))
             return
 
         self._create_native_array()

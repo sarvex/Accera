@@ -84,30 +84,32 @@ class TrackAssignmentsVisitor(ast.NodeVisitor):
         source_node_names = set(list(self.basic_assignments.keys()) + list(self.derived_vars))
         source_node_visitor = NamedNodeVisitor(source_node_names)
         source_node_visitor.visit(node.value)
-        if len(source_node_visitor.found) > 0:
-            # Only support single assignment statements currently
-            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                target = node.targets[0].id
-                if isinstance(node.value, ast.Name):
+        if (
+            len(source_node_visitor.found) > 0
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            target = node.targets[0].id
+            if isinstance(node.value, ast.Name):
                     # Simple assignment, so examine where the named value comes from
-                    if node.value.id in self.basic_assignments:
-                        self.basic_assignments[target] = node.value.id
-                    elif node.value.id in self.derived_vars:
-                        self.derived_vars.add(target)
-                    else:
-                        raise ValueError("Unrecognized assignment value: {}".format(node.value.id))
-                else:
-                    # It is something other than a simple assignment so it is a derived variable
-                    if target in self.basic_assignments:
-                        # Remove this as a basic_assignment and anything that was referencing this
-                        # as a basic_assignment now must be a derived variable since we aren't tracking
-                        # the order of this assignment relative to the logic function evaluation
-                        del self.basic_assignments[target]
-                        keys = list(self.basic_assignments.keys())
-                        for other_elt in keys:
-                            if self.basic_assignments[other_elt] == target:
-                                del self.basic_assignments[other_elt]
+                if node.value.id in self.basic_assignments:
+                    self.basic_assignments[target] = node.value.id
+                elif node.value.id in self.derived_vars:
                     self.derived_vars.add(target)
+                else:
+                    raise ValueError(f"Unrecognized assignment value: {node.value.id}")
+            else:
+                # It is something other than a simple assignment so it is a derived variable
+                if target in self.basic_assignments:
+                    # Remove this as a basic_assignment and anything that was referencing this
+                    # as a basic_assignment now must be a derived variable since we aren't tracking
+                    # the order of this assignment relative to the logic function evaluation
+                    del self.basic_assignments[target]
+                    keys = list(self.basic_assignments.keys())
+                    for other_elt in keys:
+                        if self.basic_assignments[other_elt] == target:
+                            del self.basic_assignments[other_elt]
+                self.derived_vars.add(target)
 
 
 class ArrayAccessVisitor(ast.NodeVisitor):
@@ -193,8 +195,7 @@ def get_array_access_indices(arr, func: LogicFunction):
             if not access_elt_names:
                 access_elt_names = current_access_elt_names
 
-            else:
-                if access_elt_names != current_access_elt_names:
-                    raise NotImplementedError("Currently only supports one indexing pattern per array per kernel")
+            elif access_elt_names != current_access_elt_names:
+                raise NotImplementedError("Currently only supports one indexing pattern per array per kernel")
 
     return [func_indices[elt_name] for elt_name in access_elt_names]

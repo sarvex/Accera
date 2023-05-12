@@ -990,7 +990,7 @@ class DSLTest_01Arrays(unittest.TestCase):
             # [ i, j, k, ii, jj, kk, iii, jjj, jjjj]
 
             # First, pad the dimensions with `None` until they all have the same number of entries
-            max_splits = max([len(dim_split_indices) for dim_split_indices in split_indices])
+            max_splits = max(len(dim_split_indices) for dim_split_indices in split_indices)
             for idx in range(len(split_indices)):
                 num_padding_entries = max_splits - len(split_indices[idx])
                 split_indices[idx] = split_indices[idx] + [None] * num_padding_entries
@@ -1466,8 +1466,8 @@ class DSLTest_01Arrays(unittest.TestCase):
         # range_get_result(int64_t input_dim, float* output, float* start, float delta);
 
         package = Package()
-        get_size_fn_name = f"get_size"
-        get_result_fn_name = f"get_result"
+        get_size_fn_name = "get_size"
+        get_result_fn_name = "get_result"
         get_size_fn = package.add(nest1, args=(start, limit, delta, outputDim), base_name=get_size_fn_name)
         get_result_fn = package.add(nest2, args=(inputDim, output, output_start, delta), base_name=get_result_fn_name)
 
@@ -1547,9 +1547,15 @@ class DSLTest_01Arrays(unittest.TestCase):
 
         package = Package()
         # BUGBUG: dim args ordered first due to issue with Debug mode
-        package.add(nest1, args=(start, limit, delta, outputDim), base_name=f"range_get_size")
-        ini_start_fn = package.add(nest2, args=(start, ), base_name=f"ini_start")
-        get_result_fn = package.add(nest3, args=(inputDim, output, delta), base_name=f"get_result")
+        package.add(
+            nest1,
+            args=(start, limit, delta, outputDim),
+            base_name="range_get_size",
+        )
+        ini_start_fn = package.add(nest2, args=(start, ), base_name="ini_start")
+        get_result_fn = package.add(
+            nest3, args=(inputDim, output, delta), base_name="get_result"
+        )
 
         nest4 = Nest((1, ))
 
@@ -1559,7 +1565,11 @@ class DSLTest_01Arrays(unittest.TestCase):
             get_result_fn(inputDim, output, delta)
 
         # BUGBUG: dim args ordered first due to issue with Debug mode
-        package.add(nest4, args=(inputDim, output, start, delta), base_name=f"range_get_output_array")
+        package.add(
+            nest4,
+            args=(inputDim, output, start, delta),
+            base_name="range_get_output_array",
+        )
 
         package.build(
             "test_output_array_range_node2",
@@ -2647,7 +2657,7 @@ class DSLTest_03Schedules(unittest.TestCase):
         self._verify_schedule(
             schedule1,
             [A, B, C],
-            f"test_schedule_skew_j_i_with_unrolling",
+            "test_schedule_skew_j_i_with_unrolling",
             correctness_check_values,
         )
 
@@ -5831,7 +5841,7 @@ class DSLTest_09Parameters(unittest.TestCase):
             )
 
         hat_package = HATPackage(pathlib.Path(TEST_PACKAGE_DIR) / f"{package_name}.hat")
-        functions = [fn for fn in hat_package.get_functions()]
+        functions = list(hat_package.get_functions())
         for function in functions:
             data_point = function.auxiliary["accera"]["parameters"]
             if data_point:

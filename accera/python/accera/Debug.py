@@ -32,10 +32,11 @@ def get_args_to_debug(func: Function) -> List[Array]:
     """Gets the arguments of interest to debugging
     For example, INPUT_OUTPUT Arrays
     """
-    args_to_check = [
-        arg for arg in func.requested_args if isinstance(arg, Array) and arg.role == Role.INPUT_OUTPUT
+    return [
+        arg
+        for arg in func.requested_args
+        if isinstance(arg, Array) and arg.role == Role.INPUT_OUTPUT
     ]
-    return args_to_check
 
 
 def add_check_allclose(package: Package, array: Array, atol: float = 1e-5, target: Target = Target.HOST) -> Function:
@@ -87,8 +88,8 @@ def add_debugging_functions(
         A dictionary that maps function name to debugging function names
         for arguments to be debugged
     """
-    available_fns = dict()    # reuse functions if the argument signatures match
-    result = dict()
+    available_fns = {}
+    result = {}
 
     def get_signature(arg: Array):
         return hash(f"{arg.element_type.value}:{str(arg.layout)}")

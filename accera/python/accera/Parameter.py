@@ -148,7 +148,7 @@ def create_parameters():
     try:
         names = varname(multi_vars=True)
         return (
-            tuple([DelayedParameter(name) for name in names])
+            tuple(DelayedParameter(name) for name in names)
             if len(names) > 1
             else DelayedParameter(names[0])
         )
@@ -227,8 +227,6 @@ def get_parameters_from_grid(parameter_grid: dict) -> List[dict]:
 
     choices = []
     keys = []
-    combinations_list = []
-
     for key, value in parameter_grid.items():
         try:
             _ = iter(value)
@@ -238,7 +236,4 @@ def get_parameters_from_grid(parameter_grid: dict) -> List[dict]:
         keys.append(key)
 
     choice_variants = itertools.product(*choices)
-    for variant in choice_variants:
-        combinations_list.append(dict(zip(keys, variant)))
-
-    return combinations_list
+    return [dict(zip(keys, variant)) for variant in choice_variants]

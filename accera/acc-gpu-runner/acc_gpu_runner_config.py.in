@@ -13,6 +13,11 @@ from build_config import BuildConfig
 __script_path = os.path.dirname(os.path.abspath(__file__))
 bin_dir = __script_path # Assume this script is deployed into the install bin dir
 
+
+
 class RCGPURunnerConfig:
     rc_gpu_runner = os.path.join(bin_dir, "acc-gpu-runner")
-    vulkan_runtime_wrapper_shared_library = os.path.join(bin_dir, "acc-vulkan-runtime-wrappers" + BuildConfig.shared_library_extension)
+    vulkan_runtime_wrapper_shared_library = os.path.join(
+        bin_dir,
+        f"acc-vulkan-runtime-wrappers{BuildConfig.shared_library_extension}",
+    )

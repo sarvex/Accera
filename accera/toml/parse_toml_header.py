@@ -22,11 +22,9 @@ class AcceraModuleData:
         self.metadata = toml_table["metadata"]
         self.code_table = toml_table["code"]
         variant_metadata_keys = ["_function", "_initialize_function", "_deinitialize_function", "domain"]
-        self.is_accera_variant = True
-        for key in variant_metadata_keys:
-            if key not in self.metadata:
-                # Utility modules have TOML data, but don't have Accera sample variant metadata
-                self.is_accera_variant = False
+        self.is_accera_variant = all(
+            key in self.metadata for key in variant_metadata_keys
+        )
         if self.is_accera_variant:
             self.function_name = self.metadata["_function"]
             self.initialize_function_name = self.metadata["_initialize_function"]
@@ -45,8 +43,10 @@ class AcceraLibraryData:
         self.module_names = toml_document["module_names"]
         self.modules_table = toml_document["modules"]
         self.modules = []
-        for module_name in self.modules_table:
-            self.modules.append(AcceraModuleData(self.modules_table[module_name]))
+        self.modules.extend(
+            AcceraModuleData(self.modules_table[module_name])
+            for module_name in self.modules_table
+        )
 
 
 def parse_toml_header(filepath):
@@ -59,19 +59,19 @@ def parse_toml_header(filepath):
 
 
 def print_accera_toml_library_data(accera_library_data):
-    print("Library Name: {}".format(accera_library_data.name))
-    print("Module Names: {}".format(accera_library_data.module_names))
+    print(f"Library Name: {accera_library_data.name}")
+    print(f"Module Names: {accera_library_data.module_names}")
     for module in accera_library_data.modules:
-        print("\tModule: {}".format(module.name))
-        print("\t\tIs Accera Sample Variant: {}".format(module.is_accera_variant))
+        print(f"\tModule: {module.name}")
+        print(f"\t\tIs Accera Sample Variant: {module.is_accera_variant}")
         if module.is_accera_variant:
-            print("\t\tVariant Function: {}".format(module.function_name))
-            print("\t\tInit Function: {}".format(module.initialize_function_name))
-            print("\t\tDe-Init Function: {}".format(module.deinitialize_function_name))
-            print("\t\tDomain: {}".format(module.domain))
+            print(f"\t\tVariant Function: {module.function_name}")
+            print(f"\t\tInit Function: {module.initialize_function_name}")
+            print(f"\t\tDe-Init Function: {module.deinitialize_function_name}")
+            print(f"\t\tDomain: {module.domain}")
             print("\t\tCustom Metadata Parameters:")
             for key in module.custom_metadata:
-                print("\t\t\t{} : {}".format(key, module.custom_metadata[key]))
+                print(f"\t\t\t{key} : {module.custom_metadata[key]}")
         print()
 
 

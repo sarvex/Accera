@@ -82,7 +82,7 @@ def make_fused_matmul_model(M, N, K, batch=[], alpha=1.0, transA=0, transB=0, fi
             [    # initializers
             ])
         model = helper.make_model(graph)
-        onnx.save(model, 'testdata/' + expected_name)
+        onnx.save(model, f'testdata/{expected_name}')
         return get_name(expected_name)
 
     if overwrite:
@@ -125,7 +125,7 @@ def make_matmul_model(M, N, K, batch=[], filename=None, overwrite=False, use_con
             ],
             initializers)
         model = helper.make_model(graph)
-        onnx.save(model, 'testdata/' + expected_name)
+        onnx.save(model, f'testdata/{expected_name}')
         return get_name(expected_name)
 
     if overwrite:
@@ -197,7 +197,7 @@ def make_gemm_model(M,
             ],
             initializers)
         model = helper.make_model(graph)
-        onnx.save(model, 'testdata/' + expected_name)
+        onnx.save(model, f'testdata/{expected_name}')
         return get_name(expected_name)
 
     if overwrite:

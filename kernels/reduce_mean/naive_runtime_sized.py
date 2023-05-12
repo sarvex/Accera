@@ -18,13 +18,10 @@ def _get_axes(axes, input_shape):
 def _get_out_indices(indices, axes: List[int], keepdims: int, zero_idx):
     out_indices = indices.copy()
     for i in axes:
-        if keepdims == 1:
-            out_indices[i] = zero_idx
-        else:
-            out_indices[i] = -1
+        out_indices[i] = zero_idx if keepdims == 1 else -1
     else:
         out_indices = list(filter((-1).__ne__, out_indices))
-        if len(out_indices) == 0:
+        if not out_indices:
             out_indices = [zero_idx]
 
     return out_indices
@@ -45,13 +42,10 @@ def get_output_shape(input_shape: Tuple[acc.Dimension], axes: List[int], keepdim
     # assign number to each Dimension
     # list filtering (comparison operators)
     for i in axes:
-        if keepdims == 1:
-            output_shape[i] = 1
-        else:
-            output_shape[i] = -1
+        output_shape[i] = 1 if keepdims == 1 else -1
     else:
         output_shape = list(filter((-1).__ne__, output_shape))
-        if len(output_shape) == 0:
+        if not output_shape:
             output_shape = [acc.Dimension(role=acc.Role.OUTPUT, value=1)]
     return output_shape
 
@@ -118,13 +112,8 @@ def _reorder_schedule(schedule, axes: List[int], keepdims: int, rank: int):
             else:
                 reduced.append(i)
 
-    reordered = []
-    for i in non_reduced:
-        reordered.append(indices[i])
-
-    for i in reduced:
-        reordered.append(indices[i])
-
+    reordered = [indices[i] for i in non_reduced]
+    reordered.extend(indices[i] for i in reduced)
     schedule.reorder(reordered)
 
 
@@ -144,8 +133,7 @@ def reduce_mean_schedule(data: acc.Array, reduced: acc.Array, axes: List[int] = 
 
     # BUG: Currently, concat fusing is not supported for >2 schedules
     fused_dims = input_rank - len(axes)
-    schedule00 = acc.fuse((schedule_1, schedule0, schedule1), partial=fused_dims)
-    return schedule00    #acc.fuse((schedule00, schedule1), partial=0)
+    return acc.fuse((schedule_1, schedule0, schedule1), partial=fused_dims)
 
 
 def reduce_mean_rank_3(dtype: acc.ScalarType, axes: List[int] = None, keepdims: int = 1):

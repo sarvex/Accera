@@ -83,10 +83,7 @@ def get_library_reference(dependency: LibraryDependency, platform: Platform):
         if sys.platform.startswith("win"):
             platform = Platform.WINDOWS
         elif sys.platform.startswith("darwin"):
-            if machine() == "arm64":
-                platform = Platform.MACOS_ARM64
-            else:
-                platform = Platform.MACOS
+            platform = Platform.MACOS_ARM64 if machine() == "arm64" else Platform.MACOS
         else:
             platform = Platform.LINUX
 

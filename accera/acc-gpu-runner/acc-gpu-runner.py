@@ -19,10 +19,12 @@ def rc_gpu_runner(rc_mlir_input_path, mlir_runner_utils_path=None, vulkan_runtim
     rc_gpu_runner_path = os.path.abspath(RCGPURunnerConfig.rc_gpu_runner)
     rc_gpu_runner_args = [rc_mlir_input_path]
     if mlir_runner_utils_path:
-        rc_gpu_runner_args += ["--mlir-runner-utils={}".format(mlir_runner_utils_path)]
+        rc_gpu_runner_args += [f"--mlir-runner-utils={mlir_runner_utils_path}"]
 
     if vulkan_runtime_wrapper_path:
-        rc_gpu_runner_args += ["--vulkan-runtime-wrapper={}".format(vulkan_runtime_wrapper_path)]
+        rc_gpu_runner_args += [
+            f"--vulkan-runtime-wrapper={vulkan_runtime_wrapper_path}"
+        ]
 
     if verbose:
         rc_gpu_runner_args += ["--verbose"]
@@ -34,10 +36,10 @@ def rc_gpu_runner(rc_mlir_input_path, mlir_runner_utils_path=None, vulkan_runtim
         rc_gpu_runner_args += ["--printVulkanIR"]
 
     if warmupCount:
-        rc_gpu_runner_args += ["--warmupCount={}".format(str(int(warmupCount)))]
+        rc_gpu_runner_args += [f"--warmupCount={int(warmupCount)}"]
 
     if runCount:
-        rc_gpu_runner_args += ["--runCount={}".format(str(int(runCount)))]
+        rc_gpu_runner_args += [f"--runCount={int(runCount)}"]
 
     command = " ".join([rc_gpu_runner_path] + rc_gpu_runner_args)
     run_command(command, stdout=stdout, stderr=stderr)

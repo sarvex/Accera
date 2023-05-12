@@ -48,7 +48,7 @@ class Schedule:
         self._indices = nest.get_indices()
 
         shape = nest.get_shape()
-        if any([isinstance(s, DelayedParameter) for s in shape]):
+        if any(isinstance(s, DelayedParameter) for s in shape):
             self._delayed_calls[partial(self._init_delayed)] = nest
 
         self._index_map = {
@@ -314,11 +314,10 @@ class Schedule:
             for inner_index in self._index_map[index].inners:
                 if loop_order.index(index) > loop_order.index(inner_index):
                     return False
-            if self._index_map[index].parent:
-                if loop_order.index(index) < loop_order.index(
-                    self._index_map[index].parent
-                ):
-                    return False
+            if self._index_map[index].parent and loop_order.index(
+                index
+            ) < loop_order.index(self._index_map[index].parent):
+                return False
         return True
 
     def print(self, per_index_fn: Callable[[LoopIndex], List[str]] = None):
@@ -484,7 +483,7 @@ class Schedule:
     def _deep_copy_index_map(self, index_map):
         index_map_copy = {}
         for index, entry in index_map.items():
-            inners_copy = [idx for idx in entry.inners]
+            inners_copy = list(entry.inners)
             index_map_copy[index] = IndexEntry(
                 entry.stop,
                 entry.start,
@@ -700,9 +699,9 @@ class FusedSchedule(Schedule):
         for zipped_list in orig_indices:
             assert len(zipped_list) == len(mappings)
 
-            native_indices: list = []
-            for index, mapping in zip(zipped_list, mappings):
-                native_indices.append(mapping[id(index)])
+            native_indices: list = [
+                mapping[id(index)] for index, mapping in zip(zipped_list, mappings)
+            ]
             zipped_native_indices.append(native_indices)
 
         native_prime_sched, native_other_scheds = native_scheds[0], native_scheds[1:]

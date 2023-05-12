@@ -134,9 +134,9 @@ def benchmark_gemm_shapes(data: List[gemm_opts.GemmOpts], dtype, batch_size: int
             datatype = '0' if dtype == 's' else '1'
             if gemm.transA and gemm.transB:
                 layout = '3'
-            elif gemm.transA and not gemm.transB:
+            elif gemm.transA:
                 layout = '2'
-            elif not gemm.transA and gemm.transB:
+            elif gemm.transB:
                 layout = '1'
             else:
                 layout = '0'
@@ -153,14 +153,16 @@ def benchmark_gemm_shapes(data: List[gemm_opts.GemmOpts], dtype, batch_size: int
             benchmarkResult.executable = True
             benchmarkResult.category = category
             benchmarkResult.prog_out = proc.stdout
-            matches = re.search('Best Perf.*: (.+) ms, (.+) TFlops', proc.stdout)
-            if matches:
-                benchmarkResult.time_ms = matches.group(1)
-                benchmarkResult.TFlops = matches.group(2)
-                print(matches.group(0))
-                result_rows.append(benchmarkResult.get_result_row())
-            else:
+            if not (
+                matches := re.search(
+                    'Best Perf.*: (.+) ms, (.+) TFlops', proc.stdout
+                )
+            ):
                 raise Exception("Did not find a match for the result.")
+            benchmarkResult.time_ms = matches[1]
+            benchmarkResult.TFlops = matches[2]
+            print(matches[0])
+            result_rows.append(benchmarkResult.get_result_row())
         else:
             cosmosdb.upsert_benchmark_results(result_rows, "composable_kernel", verbose)
             cosmosdb.show_benchmark_summary("composable_kernel")
@@ -185,9 +187,8 @@ def benchmark_gemm_shapes(data: List[gemm_opts.GemmOpts], dtype, batch_size: int
 
             # Read the cutlass result file and find max throughput
             result_filename += '.gemm.csv'
-            result_file = open(result_filename, 'r')
-            lines = result_file.readlines()
-            result_file.close()
+            with open(result_filename, 'r') as result_file:
+                lines = result_file.readlines()
             maxThroughput = 0.0
             min_time = 0.0
             for i in range(1, len(lines)): # skip the first line of headers

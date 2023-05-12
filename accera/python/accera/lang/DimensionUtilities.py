@@ -13,7 +13,7 @@ def create_dimensions(role=Role.INPUT):
     try:
         names = varname(multi_vars=True)
         return (
-            tuple([Dimension(name=n, role=role) for n in names])
+            tuple(Dimension(name=n, role=role) for n in names)
             if len(names) > 1
             else Dimension(name=names[0], role=role)
         )

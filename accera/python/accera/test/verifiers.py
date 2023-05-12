@@ -81,9 +81,11 @@ class FileChecker():
             filecheck_exe = shutil.which("FileCheck")
 
             # not found in PATH, try BuildConfig (Dev environments only)
-            if not filecheck_exe:
-                if pathlib.Path(BuildConfig.llvm_filecheck).exists():
-                    filecheck_exe = BuildConfig.llvm_filecheck
+            if (
+                not filecheck_exe
+                and pathlib.Path(BuildConfig.llvm_filecheck).exists()
+            ):
+                filecheck_exe = BuildConfig.llvm_filecheck
 
             if not filecheck_exe:
                 raise RuntimeError("ERROR: Could not find FileCheck, please ensure that FileCheck is in the PATH")
@@ -127,8 +129,7 @@ class VerifyPackage():
             after: desired values after calling the function
             tolerance: relative tolerance for floating point comparison
         """
-        hat_files = list(filter(lambda f: f.suffix == ".hat", self.file_list))
-        if hat_files:
+        if hat_files := list(filter(lambda f: f.suffix == ".hat", self.file_list)):
             assert len(hat_files) == 1
             hat_file = hat_files[0]
             if not self.correctness_checker:
@@ -149,9 +150,11 @@ class VerifyPackage():
         # Python 3.7 on Windows raises an OSError for is_file() for non-existent files,
         # use os.path.isfile() instead
         if not os.path.isfile(filepath.absolute()):
-            files = glob.glob(f"{self.output_dir}/**/{filename}", recursive=True)
-            if not files:
-                raise ValueError(f"{filename} not found, did you set the correct Package.Format?")
-            filepath = pathlib.Path(files[0])
+            if files := glob.glob(
+                f"{self.output_dir}/**/{filename}", recursive=True
+            ):
+                filepath = pathlib.Path(files[0])
 
+            else:
+                raise ValueError(f"{filename} not found, did you set the correct Package.Format?")
         return FileChecker(filepath.resolve())

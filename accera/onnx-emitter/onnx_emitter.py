@@ -91,16 +91,14 @@ def _infer_shapes(model):
 
 
 def get_attribute(node, attr_name, default_value=None):
-    found = [attr for attr in node.attribute if attr.name == attr_name]
-    if found:
+    if found := [attr for attr in node.attribute if attr.name == attr_name]:
         return helper.get_attribute_value(found[0])
     return default_value
 
 
 def get_initializer(model, name):
     graph_ = model.graph
-    result = [init for init in graph_.initializer if init.name == name]
-    if result:
+    if result := [init for init in graph_.initializer if init.name == name]:
         return result[0]
     else:
         return None
@@ -108,8 +106,11 @@ def get_initializer(model, name):
 
 def get_value_info(shape_inferred_model, name):
     graph_ = shape_inferred_model.graph
-    found = [vi for vi in list(graph_.value_info) + list(graph_.input) if vi.name == name]
-    if found:
+    if found := [
+        vi
+        for vi in list(graph_.value_info) + list(graph_.input)
+        if vi.name == name
+    ]:
         return found[0]
     return None
 
@@ -117,12 +118,14 @@ def get_value_info(shape_inferred_model, name):
 def get_shape(shape_inferred_model, name):
     graph_ = shape_inferred_model.graph
 
-    found = [i for i in list(graph_.initializer) if i.name == name]
-    if found:
+    if found := [i for i in list(graph_.initializer) if i.name == name]:
         return found[0].dims
 
-    found = [vi for vi in list(graph_.value_info) + list(graph_.input) if vi.name == name]
-    if found:
+    if found := [
+        vi
+        for vi in list(graph_.value_info) + list(graph_.input)
+        if vi.name == name
+    ]:
         return get_shape_from_type_proto(found[0].type)
 
     return None
@@ -188,8 +191,7 @@ def handle_gemm_node(node, model, package, target=Target.HOST):
 
     emitted_info = {}
     opts = get_target_options(target)
-    B_init_data = get_initializer(model, B_input_name)
-    if B_init_data:
+    if B_init_data := get_initializer(model, B_input_name):
         print(f"B Initializer detected for {node.name} for input {B_input_name}")
         opts = opts._replace(PackBFuncName=f"{node.name}_reshape_B",
                              PackBBufferSizeFuncName=f"{node.name}_reshape_B_size")
@@ -208,16 +210,15 @@ def handle_gemm_node(node, model, package, target=Target.HOST):
                       target=target)
     assert (args == (A, B, C, Y))
 
-    emitted_info.update({
+    emitted_info |= {
         ONNXHATPackage.NodeNameKey: node.name,
         ONNXHATPackage.NodeTypeKey: node.op_type,
         ONNXHATPackage.NodeDomainKey: node.domain,
-        ONNXHATPackage.NodeArgsKey: node.input[0:3] + [Y_output_name],
-
-        # TODO: This should be a lot easier
+        ONNXHATPackage.NodeArgsKey: node.input[:3] + [Y_output_name],
         ONNXHATPackage.NodeArgShapesKey: [
-            list(arg.shape) for arg in [A, B, C, Y]]
-    })
+            list(arg.shape) for arg in [A, B, C, Y]
+        ],
+    }
 
     return package.add(plan,
                        args=[A, B, C, Y],
@@ -258,15 +259,17 @@ def handle_matmul_node(node, model, package, target=Target.HOST):
                              PackBBufferSizeFuncName=f"{node.name}_reshape_B_size")
         emitted_info['node_packing_functions'] = {B_input_name: [opts.PackBFuncName, opts.PackBBufferSizeFuncName]}
 
-    emitted_info.update({
+    emitted_info |= {
         ONNXHATPackage.NodeNameKey: node.name,
         ONNXHATPackage.NodeTypeKey: node.op_type,
         ONNXHATPackage.NodeDomainKey: node.domain,
-        ONNXHATPackage.NodeArgsKey: [A_input_name, B_input_name, C_output_name],
-
-        # TODO: This should be a lot easier
-        ONNXHATPackage.NodeArgShapesKey: list(arg.shape for arg in [A, B, C])
-    })
+        ONNXHATPackage.NodeArgsKey: [
+            A_input_name,
+            B_input_name,
+            C_output_name,
+        ],
+        ONNXHATPackage.NodeArgShapesKey: [arg.shape for arg in [A, B, C]],
+    }
 
     plan, args = MLAS(A, B, C, alpha=alpha, transA=transA, transB=transB, zero_C=True, opts=opts, target=target)
     return package.add(plan, args, base_name=node.name, auxiliary={ONNXHATPackage.AuxTableName: emitted_info})

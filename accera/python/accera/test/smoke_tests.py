@@ -73,6 +73,9 @@ logger.setLevel(logging.DEBUG)
 
 def make_asm_sequence_filechecker(v: verifiers.VerifyPackage, file_name: str, interleave_loc_tags: bool = True):
 
+
+
+
     class FileCheckerWrapper:
 
         def __init__(self, file_checker):
@@ -109,14 +112,14 @@ def make_asm_sequence_filechecker(v: verifiers.VerifyPackage, file_name: str, in
             # Matches xmm, ymm, zmm registers
             suffix = r"mm[0-9]+"
             if required_prefix is not None:
-                return r"%" + required_prefix + suffix
-            return r"%(x|y|z)" + suffix
+                return f"%{required_prefix}{suffix}"
+            return f"%(x|y|z){suffix}"
 
         def get_register_regex(self):
             # Matches any register name prefixed with %
             simple_register_regex = self.get_simple_register_regex()
             vector_register_regex = self.get_vector_register_regex()
-            return r"(%s|%s)" % (simple_register_regex, vector_register_regex)
+            return f"({simple_register_regex}|{vector_register_regex})"
 
         def get_memory_position_regex(self):
             optional_offset = r"(-?[0-9]+)?"
@@ -135,9 +138,8 @@ def make_asm_sequence_filechecker(v: verifiers.VerifyPackage, file_name: str, in
             possibly_constant_offset_scaled_offset_regex = optional_offset + scaled_offset_regex
 
             # Matches any of the above
-            return r"(%s|%s|%s)" % (
-                register_regex, possibly_offset_register, possibly_constant_offset_scaled_offset_regex
-            )
+            return f"({register_regex}|{possibly_offset_register}|{possibly_constant_offset_scaled_offset_regex})"
+
 
     return FileCheckerWrapper(v.file_checker(file_name))
 
@@ -1472,8 +1474,11 @@ class SmokeTest(unittest.TestCase):
         #package.add(fused_schedule, args=(A, B, C, zero_point_A, zero_point_B), base_name=package_name)
         subfunctions = [
             package.add(
-                sched, args=(A, B, C, zero_point_A, zero_point_B), base_name=package_name + "_sched_" + str(index)
-            ) for index, sched in enumerate(subschedules)
+                sched,
+                args=(A, B, C, zero_point_A, zero_point_B),
+                base_name=f"{package_name}_sched_{str(index)}",
+            )
+            for index, sched in enumerate(subschedules)
         ]
 
         # Now create a main function that invokes each of the subfunctions
@@ -1831,7 +1836,7 @@ class SmokeTest(unittest.TestCase):
 
         test_name = "test_offset_sub_array_packing_flat"
         N = 8
-        output_size = N * N + N
+        output_size = N**2 + N
 
         Input = Array(role=Role.INPUT, element_type=ScalarType.float32, shape=(N, N))
         Output = Array(role=Role.INPUT_OUTPUT, element_type=ScalarType.float32, shape=(output_size, ))
@@ -1853,7 +1858,7 @@ class SmokeTest(unittest.TestCase):
 
         @transpose_nest.iteration_logic
         def _transpose():
-            packed_output = Output.sub_array(offsets=(N, ), shape=(N * N, ))
+            packed_output = Output.sub_array(offsets=(N, ), shape=(N**2, ))
             packed_output[transpose_j * N + transpose_i] = Input[transpose_i, transpose_j]
 
         transpose_fn = package.add(transpose_nest, args=(Input, Output), base_name="transpose_fn")
@@ -1875,8 +1880,8 @@ class SmokeTest(unittest.TestCase):
 
             # correctness check
             test_input = np.random.random([N, N]).astype(np.float32)
-            test_output = np.random.random([N * N + N]).astype(np.float32)
-            test_output_ref = np.random.random([N * N + N]).astype(np.float32)
+            test_output = np.random.random([N**2 + N]).astype(np.float32)
+            test_output_ref = np.random.random([N**2 + N]).astype(np.float32)
             for i in range(N):
                 test_output_ref[i] = test_input[i, i]
                 for j in range(N):
@@ -1892,7 +1897,7 @@ class SmokeTest(unittest.TestCase):
         test_name = "test_offset_sub_array_packing_split_dim"
 
         N = 4
-        output_size = N * N + N
+        output_size = N**2 + N
 
         Input = Array(role=Role.INPUT, element_type=ScalarType.float32, shape=(N, N))
         Output = Array(role=Role.INPUT_OUTPUT, element_type=ScalarType.float32, shape=(output_size, ))
@@ -1914,7 +1919,7 @@ class SmokeTest(unittest.TestCase):
 
         @transpose_nest.iteration_logic
         def _transpose():
-            packed_output = Output.sub_array(offsets=(N, ), shape=(N * N, ))
+            packed_output = Output.sub_array(offsets=(N, ), shape=(N**2, ))
             packed_output_split = packed_output._split_dimension(0, cast(N, ScalarType.index))
             packed_output_split[transpose_j, transpose_i] = Input[transpose_i, transpose_j]
 
@@ -1937,8 +1942,8 @@ class SmokeTest(unittest.TestCase):
 
             # correctness check
             test_input = np.random.random([N, N]).astype(np.float32)
-            test_output = np.random.random([N * N + N]).astype(np.float32)
-            test_output_ref = np.random.random([N * N + N]).astype(np.float32)
+            test_output = np.random.random([N**2 + N]).astype(np.float32)
+            test_output_ref = np.random.random([N**2 + N]).astype(np.float32)
             for i in range(N):
                 test_output_ref[i] = test_input[i, i]
                 for j in range(N):
@@ -1954,7 +1959,7 @@ class SmokeTest(unittest.TestCase):
         test_name = "test_offset_sub_array_packing_multiple_split_dim"
         N = 4
         N_inner = 2
-        output_size = N * N + N
+        output_size = N**2 + N
 
         Input = Array(role=Role.INPUT, element_type=ScalarType.float32, shape=(N, N))
         Output = Array(role=Role.INPUT_OUTPUT, element_type=ScalarType.float32, shape=(output_size, ))
@@ -1977,7 +1982,7 @@ class SmokeTest(unittest.TestCase):
         @transpose_nest.iteration_logic
         def _transpose():
             # packed_output is an offset vector with shape [ 16 ]
-            packed_output = Output.sub_array(offsets=(N, ), shape=(N * N, ))
+            packed_output = Output.sub_array(offsets=(N, ), shape=(N**2, ))
 
             # packed_output_split_0 is an offset array with shape [ 4, 4 ]
             packed_output_split_0 = packed_output._split_dimension(0, cast(N, ScalarType.index))
@@ -2011,8 +2016,8 @@ class SmokeTest(unittest.TestCase):
 
             # correctness check
             test_input = np.random.random([N, N]).astype(np.float32)
-            test_output = np.random.random([N * N + N]).astype(np.float32)
-            test_output_ref = np.random.random([N * N + N]).astype(np.float32)
+            test_output = np.random.random([N**2 + N]).astype(np.float32)
+            test_output_ref = np.random.random([N**2 + N]).astype(np.float32)
             for i in range(0, N, N_inner):
                 for j in range(0, N, N_inner):
                     for ii in range(N_inner):
@@ -3260,7 +3265,7 @@ class SmokeTest(unittest.TestCase):
         current_B_caches = [B]
         current_C_caches = [C]
         for (cache_level, cache_trigger_level, layout) in A_cache_infos:
-            prev_cache = current_A_caches[len(current_A_caches) - 1]
+            prev_cache = current_A_caches[-1]
 
             if cache_by_level:
                 new_cache = plan.cache(prev_cache, level=cache_level, trigger_level=cache_trigger_level, layout=layout)
@@ -3272,7 +3277,7 @@ class SmokeTest(unittest.TestCase):
             current_A_caches.append(new_cache)
 
         for (cache_level, cache_trigger_level, layout) in B_cache_infos:
-            prev_cache = current_B_caches[len(current_B_caches) - 1]
+            prev_cache = current_B_caches[-1]
 
             if cache_by_level:
                 new_cache = plan.cache(prev_cache, level=cache_level, trigger_level=cache_trigger_level, layout=layout)
@@ -3284,7 +3289,7 @@ class SmokeTest(unittest.TestCase):
             current_B_caches.append(new_cache)
 
         for (cache_level, layout) in C_cache_infos:
-            prev_cache = current_C_caches[len(current_C_caches) - 1]
+            prev_cache = current_C_caches[-1]
 
             if cache_by_level:
                 new_cache = plan.cache(prev_cache, level=cache_level, layout=layout)
@@ -3320,10 +3325,14 @@ class SmokeTest(unittest.TestCase):
             force_boundary_conditions=False,
             cache_by_level=False
         )
-        function = package.add(plan, args=args, base_name=f"hierarchical_cache_matmul_2_caches_simple_index")
+        function = package.add(
+            plan,
+            args=args,
+            base_name="hierarchical_cache_matmul_2_caches_simple_index",
+        )
 
         self._verify_matrix_multiplication_function(
-            function, package, f"hierarchical_cache_matmul_2_caches_simple_index"
+            function, package, "hierarchical_cache_matmul_2_caches_simple_index"
         )
 
     def test_hierarchical_cache_matmul_2_caches_simple_boundaries(self) -> None:
@@ -3349,9 +3358,13 @@ class SmokeTest(unittest.TestCase):
             C_cache_infos=c_caches,
             force_boundary_conditions=False
         )
-        function = package.add(plan, args=args, base_name=f"hierarchical_cache_matmul_2_caches_simple")
+        function = package.add(
+            plan, args=args, base_name="hierarchical_cache_matmul_2_caches_simple"
+        )
 
-        self._verify_matrix_multiplication_function(function, package, f"hierarchical_cache_matmul_2_caches_simple")
+        self._verify_matrix_multiplication_function(
+            function, package, "hierarchical_cache_matmul_2_caches_simple"
+        )
 
     def test_hierarchical_cache_matmul_2_caches_complicated_boundaries(self) -> None:
         import accera as acc
@@ -3376,10 +3389,14 @@ class SmokeTest(unittest.TestCase):
             C_cache_infos=c_caches,
             force_boundary_conditions=True
         )
-        function = package.add(plan, args=args, base_name=f"hierarchical_cache_matmul_2_caches_complicated")
+        function = package.add(
+            plan,
+            args=args,
+            base_name="hierarchical_cache_matmul_2_caches_complicated",
+        )
 
         self._verify_matrix_multiplication_function(
-            function, package, f"hierarchical_cache_matmul_2_caches_complicated"
+            function, package, "hierarchical_cache_matmul_2_caches_complicated"
         )
 
     def test_hierarchical_cache_matmul_3_caches_simple_boundaries(self) -> None:
@@ -3408,9 +3425,13 @@ class SmokeTest(unittest.TestCase):
             C_cache_infos=c_caches,
             force_boundary_conditions=False
         )
-        function = package.add(plan, args=args, base_name=f"hierarchical_cache_matmul_3_caches_simple")
+        function = package.add(
+            plan, args=args, base_name="hierarchical_cache_matmul_3_caches_simple"
+        )
 
-        self._verify_matrix_multiplication_function(function, package, f"hierarchical_cache_matmul_3_caches_simple")
+        self._verify_matrix_multiplication_function(
+            function, package, "hierarchical_cache_matmul_3_caches_simple"
+        )
 
     def test_hierarchical_cache_matmul_3_caches_complicated_boundaries(self) -> None:
         import accera as acc
@@ -3438,10 +3459,14 @@ class SmokeTest(unittest.TestCase):
             C_cache_infos=c_caches,
             force_boundary_conditions=True
         )
-        function = package.add(plan, args=args, base_name=f"hierarchical_cache_matmul_3_caches_complicated")
+        function = package.add(
+            plan,
+            args=args,
+            base_name="hierarchical_cache_matmul_3_caches_complicated",
+        )
 
         self._verify_matrix_multiplication_function(
-            function, package, f"hierarchical_cache_matmul_3_caches_complicated"
+            function, package, "hierarchical_cache_matmul_3_caches_complicated"
         )
 
     def test_hierarchical_cache_parameterized(self) -> None:
@@ -3482,10 +3507,12 @@ class SmokeTest(unittest.TestCase):
                 c_level_1: 8,
                 c_level_2: 6,
             },
-            base_name=f"parameterized_hierarchical_cache_matmul"
+            base_name="parameterized_hierarchical_cache_matmul",
         )
 
-        self._verify_matrix_multiplication_function(function, package, f"parameterized_hierarchical_cache_matmul")
+        self._verify_matrix_multiplication_function(
+            function, package, "parameterized_hierarchical_cache_matmul"
+        )
 
     def _max_element_cache_matmul_common(
         self, M, N, K, A_cache_infos=[], B_cache_infos=[], C_cache_infos=[], force_boundary_conditions=False
@@ -3530,17 +3557,17 @@ class SmokeTest(unittest.TestCase):
         current_B_caches = [B]
         current_C_caches = [C]
         for (cache_budget, layout) in A_cache_infos:
-            prev_cache = current_A_caches[len(current_A_caches) - 1]
+            prev_cache = current_A_caches[-1]
             new_cache = plan.cache(prev_cache, max_elements=cache_budget, layout=layout)
             current_A_caches.append(new_cache)
 
         for (cache_budget, layout) in B_cache_infos:
-            prev_cache = current_B_caches[len(current_B_caches) - 1]
+            prev_cache = current_B_caches[-1]
             new_cache = plan.cache(prev_cache, max_elements=cache_budget, layout=layout)
             current_B_caches.append(new_cache)
 
         for (cache_budget, layout) in C_cache_infos:
-            prev_cache = current_C_caches[len(current_C_caches) - 1]
+            prev_cache = current_C_caches[-1]
             new_cache = plan.cache(prev_cache, max_elements=cache_budget, layout=layout)
             current_C_caches.append(new_cache)
 
@@ -3562,9 +3589,13 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_simple_single_budget_cache")
+        function = package.add(
+            plan, args=args, base_name="test_simple_single_budget_cache"
+        )
 
-        self._verify_matrix_multiplication_function(function, package, f"test_simple_single_budget_cache")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_simple_single_budget_cache"
+        )
 
     def test_multiple_single_budget_caches(self) -> None:
         import accera as acc
@@ -3584,9 +3615,13 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_multiple_single_budget_caches")
+        function = package.add(
+            plan, args=args, base_name="test_multiple_single_budget_caches"
+        )
 
-        self._verify_matrix_multiplication_function(function, package, f"test_multiple_single_budget_caches")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_multiple_single_budget_caches"
+        )
 
     def test_hierarchical_budget_caches(self) -> None:
         import accera as acc
@@ -3603,9 +3638,13 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_hierarchical_budget_caches")
+        function = package.add(
+            plan, args=args, base_name="test_hierarchical_budget_caches"
+        )
 
-        self._verify_matrix_multiplication_function(function, package, f"test_hierarchical_budget_caches")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_hierarchical_budget_caches"
+        )
 
     def test_hierarchical_budget_caches_boundary_conditions(self) -> None:
         import accera as acc
@@ -3628,10 +3667,16 @@ class SmokeTest(unittest.TestCase):
             C_cache_infos=c_caches,
             force_boundary_conditions=True
         )
-        function = package.add(plan, args=args, base_name=f"test_hierarchical_budget_caches_boundary_conditions")
+        function = package.add(
+            plan,
+            args=args,
+            base_name="test_hierarchical_budget_caches_boundary_conditions",
+        )
 
         self._verify_matrix_multiplication_function(
-            function, package, f"test_hierarchical_budget_caches_boundary_conditions"
+            function,
+            package,
+            "test_hierarchical_budget_caches_boundary_conditions",
         )
 
     def test_small_budget_cache(self) -> None:
@@ -3649,9 +3694,11 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_small_budget_cache")
+        function = package.add(plan, args=args, base_name="test_small_budget_cache")
 
-        self._verify_matrix_multiplication_function(function, package, f"test_small_budget_cache")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_small_budget_cache"
+        )
 
     def test_max_budget_cache(self) -> None:
         import accera as acc
@@ -3668,9 +3715,11 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_max_budget_cache")
+        function = package.add(plan, args=args, base_name="test_max_budget_cache")
 
-        self._verify_matrix_multiplication_function(function, package, f"test_max_budget_cache")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_max_budget_cache"
+        )
 
     def test_overmax_budget_cache(self) -> None:
         import accera as acc
@@ -3687,9 +3736,11 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_overmax_budget_cache")
+        function = package.add(plan, args=args, base_name="test_overmax_budget_cache")
 
-        self._verify_matrix_multiplication_function(function, package, f"test_overmax_budget_cache")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_overmax_budget_cache"
+        )
 
     def test_boundary_differently_shaped_budget_cache(self) -> None:
         import accera as acc
@@ -3714,9 +3765,15 @@ class SmokeTest(unittest.TestCase):
         plan, args = self._max_element_cache_matmul_common(
             M, N, K, A_cache_infos=a_caches, B_cache_infos=b_caches, C_cache_infos=c_caches
         )
-        function = package.add(plan, args=args, base_name=f"test_boundary_differently_shaped_budget_cache")
+        function = package.add(
+            plan,
+            args=args,
+            base_name="test_boundary_differently_shaped_budget_cache",
+        )
 
-        self._verify_matrix_multiplication_function(function, package, f"test_boundary_differently_shaped_budget_cache")
+        self._verify_matrix_multiplication_function(
+            function, package, "test_boundary_differently_shaped_budget_cache"
+        )
 
     def test_gpu_vec_add(self):
         # Define our vector sizes
@@ -3801,7 +3858,7 @@ class SmokeTest(unittest.TestCase):
         shutil.rmtree(output_dir, ignore_errors=True)
 
         with verifiers.VerifyPackage(self, test_name, output_dir, file_list=[f"{test_name}.cu",
-                                                                             f"{test_name}.hat"]) as v:
+                                                                                 f"{test_name}.hat"]) as v:
             package.build(
                 name=test_name,
                 format=Package.Format.MLIR_VERBOSE | Package.Format.DEFAULT,
@@ -3809,8 +3866,8 @@ class SmokeTest(unittest.TestCase):
                 output_dir=output_dir
             )
 
-            checker = v.file_checker(f"*_LoopNestToValueFunc.mlir")
-            checker.check_label('accv.func nested @' + test_name)
+            checker = v.file_checker("*_LoopNestToValueFunc.mlir")
+            checker.check_label(f'accv.func nested @{test_name}')
 
             pairs = zip([N] + list(splits), splits)
             has_bad_split = any(c % n for c, n in pairs)

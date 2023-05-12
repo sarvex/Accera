@@ -62,10 +62,10 @@ def ensure_path_exists(path):
 
 def delete_path_recursively(path):
     if os.path.exists(path):
-        print('Deleting ' + str(path))
+        print(f'Deleting {str(path)}')
         shutil.rmtree(path)
     else:
-        print('No folder to delete at ' + str(path))
+        print(f'No folder to delete at {str(path)}')
 
 
 def delete_file(filename):
@@ -76,9 +76,8 @@ def delete_file(filename):
 def replace_file(filename, binary_contents):
     delete_file(filename)
     try:
-        fd = open(filename, 'wb')
-        fd.write(binary_contents)
-        fd.close()
+        with open(filename, 'wb') as fd:
+            fd.write(binary_contents)
         return True
     except OSError:
         return False
@@ -166,8 +165,8 @@ def save_image():
     output_directory = os.path.join(viz_output_dir, viz_name)
     ensure_path_exists(output_directory)
 
-    file_path = os.path.join(output_directory, frame_name + ".png")
-    print('Saving frame ' + frame_name + ' for viz ' + viz_name + ' to: ' + str(file_path))
+    file_path = os.path.join(output_directory, f"{frame_name}.png")
+    print(f'Saving frame {frame_name} for viz {viz_name} to: {str(file_path)}')
 
     trimmed_data = request.json['frame'].replace('data:image/png;base64,', '')
     binary_data = a2b_base64(trimmed_data)
@@ -185,7 +184,9 @@ def start_sequence():
     delete_path_recursively(output_directory)
     ensure_path_exists(output_directory)
 
-    print('Starting sequence named ' + sequence_name + ' for viz ' + viz_name + ' saving to: ' + str(output_directory))
+    print(
+        f'Starting sequence named {sequence_name} for viz {viz_name} saving to: {str(output_directory)}'
+    )
 
     return json.dumps({'success': True})
 
@@ -211,10 +212,15 @@ def add_to_sequence():
         frame_duration = int(request.json['frame_duration'])
         num_frames = frame_duration // duration_one_frame
 
-    print('Existing highest frame ' + str(current_highest_frame) + ' adding ' + str(num_frames) + ' frames')
+    print(
+        f'Existing highest frame {str(current_highest_frame)} adding {num_frames} frames'
+    )
     success = True
     for f in range(1, num_frames + 1):
-        file_path = os.path.join(output_directory, create_sequence_filename(current_highest_frame + f) + ".png")
+        file_path = os.path.join(
+            output_directory,
+            f"{create_sequence_filename(current_highest_frame + f)}.png",
+        )
         if replace_file(file_path, binary_data) == False:
             success = False
             break
@@ -230,19 +236,19 @@ def finish_sequence():
     fps = int(request.json['sequence_fps'])
 
     input_directory = get_sequence_path(viz_name, sequence_name)
-    output_file = os.path.join(viz_output_dir, viz_name, sequence_name + '.mp4')
+    output_file = os.path.join(viz_output_dir, viz_name, f'{sequence_name}.mp4')
     delete_file(output_file)
 
     input_glob = os.path.join(input_directory, '%06d.png')
-    print(str(input_glob))
-    print(str(output_file))
-    print('Rendering sequence ' + str(sequence_name) + ' to video at ' + str(fps) + ' fps')
+    print(input_glob)
+    print(output_file)
+    print(f'Rendering sequence {str(sequence_name)} to video at {fps} fps')
 
     try:
         (ffmpeg.input(str(input_glob), framerate=fps).output(str(output_file), pix_fmt='yuv420p', vb='20M').run())
     except Exception as e:
         print('Failed to invoke ffmpeg. Try "pip install ffmpeg-python" to install this dependency')
-        print(str(e))
+        print(e)
         return json.dumps({'success': False})
 
     return json.dumps({'success': True})
@@ -251,19 +257,17 @@ def finish_sequence():
 def get_automated_file_list():
     viz_files = [relpath(f, viz_input_dir) for f in glob.iglob(f"{viz_input_dir}/**/*.js", recursive=True)]
     viz_files.remove('common.js')
-    filtered_viz_files = [file for file in viz_files if fnmatch.fnmatch(file, FILE_PATTERN)]
-
-    return filtered_viz_files
+    return [file for file in viz_files if fnmatch.fnmatch(file, FILE_PATTERN)]
 
 
 #http://localhost:8000/static/index.html?selected_viz=contained_split_keyframes.js&save_through_browser=false&enable_video=true&enable_image=true&automated_run=true&remaining_files=?
 def attempt_automated_run():
     file_list = get_automated_file_list()
     if len(file_list) == 0:
-        print('No files match the pattern ' + str(FILE_PATTERN) + ' aborting automated run')
+        print(f'No files match the pattern {str(FILE_PATTERN)} aborting automated run')
         return
 
-    print('Automated run will include: ' + str(len(file_list)) + ' files')
+    print(f'Automated run will include: {len(file_list)} files')
 
     first_file = file_list.pop(0)
     file_list_csv = ','.join(file_list)
@@ -277,7 +281,14 @@ def attempt_automated_run():
     }
     url_params = urllib.parse.urlencode(params)
     automated_url = urllib.parse.urlunparse(
-        ('http', 'localhost:' + str(PORT), '/static/index.html', None, url_params, None)
+        (
+            'http',
+            f'localhost:{str(PORT)}',
+            '/static/index.html',
+            None,
+            url_params,
+            None,
+        )
     )
     print(automated_url)
 

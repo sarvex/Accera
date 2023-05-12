@@ -35,7 +35,9 @@ def generate():
     #     void _accera_allocate(void** memory, size_t bytes);
     #
     package = acc.Package()
-    package.add(nest, args=(Start, Limit, Delta, Output, OutputDim), base_name=f"Range")
+    package.add(
+        nest, args=(Start, Limit, Delta, Output, OutputDim), base_name="Range"
+    )
 
     # TODO: package.build, etc to return a hat package
     return package

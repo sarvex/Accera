@@ -30,22 +30,23 @@ def main(cl_args=[]):
 
         def node_type_filter(onnx_func):
             return onnx_func.onnx["node_type"] == args.node_type
+
         filtered_funcs = list(filter(node_type_filter, onnx_funcs))
 
         print(f"Found {len(filtered_funcs)} functions with node_type = {args.node_type}:")
         for func in filtered_funcs:
             print(f"\t{func.name}, declared in {func.include_file}, link target {func.link_file}")
 
-        matching_link_targets = set([func.link_file for func in filtered_funcs])
+        matching_link_targets = {func.link_file for func in filtered_funcs}
         print(f"link target files: {matching_link_targets}")
     else:
-        print(f"Searching for all ONNX functions...")
+        print("Searching for all ONNX functions...")
         print(f"Found {len(onnx_funcs)} functions:")
 
         for func in onnx_funcs:
             print(f"\t{func.name}, op_type = {func.onnx['node_type']} declared in in {func.include_file}, link target {func.link_file}")
 
-        all_link_targets = set([func.link_file for func in onnx_funcs])
+        all_link_targets = {func.link_file for func in onnx_funcs}
         print(f"link target files: {all_link_targets}")
 
 if __name__ == "__main__":

@@ -1972,16 +1972,16 @@ class TensorizeTest(unittest.TestCase):
         if test_name is None:
             test_name = "test_rocm_tensorize"
             test_name += f"_{M}x{N}x{K}"
-            test_name += "_" + get_type_str(intype)
-            test_name += "_" + get_type_str(outtype)
+            test_name += f"_{get_type_str(intype)}"
+            test_name += f"_{get_type_str(outtype)}"
             test_name += "_" + "x".join([str(dim) for dim in tensor_splits])
-            test_name += "_" + mma_shape.name
+            test_name += f"_{mma_shape.name}"
             if use_static_offsets:
                 test_name += "_tensormap"
             if num_fused_passes is not None:
-                test_name += "_p" + str(num_fused_passes)
+                test_name += f"_p{str(num_fused_passes)}"
             if thread_coarsening_tile[0] != 1 or thread_coarsening_tile[1] != 1:
-                test_name += "_t" + str(thread_coarsening_tile[0]) + "_" + str(thread_coarsening_tile[1])
+                test_name += f"_t{str(thread_coarsening_tile[0])}_{str(thread_coarsening_tile[1])}"
 
         def file_check_fn(v):
             checker = v.file_checker(f"{test_name}.cu")

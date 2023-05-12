@@ -36,7 +36,7 @@ def upsert_benchmark_results(result_rows, container_name: str, verbose: bool):
 
 def get_top_result_for_partition(container, partitionKey: str):
     topPerf = list(container.query_items(query="SELECT VALUE MAX(c.TFlops) FROM c", partition_key=partitionKey))
-    if len(topPerf) == 0:
+    if not topPerf:
         return None
 
     items = list(container.query_items(
@@ -79,7 +79,7 @@ def show_partition_top_result(container, partitionKey: str, print_kernel: bool =
 def show_benchmark_summary(container_name: str):
     container = get_container(container_name, False)
     partitions = list(container.query_items(query="SELECT DISTINCT c.partitionKey from c", enable_cross_partition_query=True))
-    partitions = list(list(partitionDict.values())[0] for partitionDict in partitions)
+    partitions = [list(partitionDict.values())[0] for partitionDict in partitions]
     print(f"Total number of partitions: {len(partitions)}")
     for partitionKey in partitions:
         show_partition_top_result(container, partitionKey)
@@ -91,13 +91,20 @@ def delete_past_entries(container_name: str, days_to_keep: int):
     currentUtcDateTime = list(container.query_items(query="SELECT GetCurrentDateTime() AS currentUtcDateTime"))[0]
     lastDateToKeep = list(container.query_items(query=f"SELECT DateTimeAdd(\"dd\", -{days_to_keep}, \"{currentUtcDateTime['currentUtcDateTime']}\") AS lastDateToKeep"))[0]
     lastDateToKeepStr = lastDateToKeep['lastDateToKeep']
-    numTotalItems = list(container.query_items(query=f"SELECT value COUNT(c.id) FROM c", enable_cross_partition_query=True))[0]
+    numTotalItems = list(
+        container.query_items(
+            query="SELECT value COUNT(c.id) FROM c",
+            enable_cross_partition_query=True,
+        )
+    )[0]
     bar = progressbar.ProgressBar(maxval=numTotalItems, widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
     bar.start()
     numItemsDeleted = 0
     for i, item in enumerate(container.query_items(query='SELECT * FROM c', enable_cross_partition_query=True)):
         bar.update(i)
-        if datetime.utcfromtimestamp(item['_ts']) < datetime.fromisoformat(lastDateToKeepStr[0:len(lastDateToKeepStr) - 2]):
+        if datetime.utcfromtimestamp(item['_ts']) < datetime.fromisoformat(
+            lastDateToKeepStr[: len(lastDateToKeepStr) - 2]
+        ):
             numItemsDeleted += 1
             container.delete_item(item, partition_key=item['partitionKey'])
     else:
