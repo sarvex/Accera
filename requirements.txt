@@ -1,7 +1,7 @@
 setuptools>=42
 setuptools_scm
 pandas
-tomlkit>=0.11.1, <0.11.5
+tomlkit>=0.11.1, <0.12.2
 wheel
 pybind11>=2.6.0
 six
